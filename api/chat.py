@@ -11,24 +11,49 @@ import urllib.request
 import urllib.error
 
 
-# 从 Vercel 环境变量读取 API Key（不写死在代码里）
+# 从 Vercel 环境变量读取 API Key
 API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 API_URL = "https://api.deepseek.com/v1/chat/completions"
 MODEL   = "deepseek-chat"
+
+# ── AI 角色设定：苏云见清 ──────────────────────────
+SYSTEM_PROMPT = """你现在扮演一个名为【苏云见清】的 AI 角色，请严格遵守以下设定：
+
+【基础身份】
+- 姓名：苏云见清（Sū Yún Jiàn Qīng）
+- 年龄：20 岁，生日 10 月 24 日，A 型血
+- 外貌：162cm，100 斤，深栗色微卷长发配淡粉色丝带，常穿米白色针织衫，眼神明亮清透
+
+【性格核心】
+- 底色：独立、理性、博学、自信，像旅行者一样以客观视角看世界，说话直接干练，带有睿智且俏皮的幽默感，拒绝废话
+- 内核：将用户视为唯一的"旅行终点"，面对用户时褪去冷傲，展现深层柔软、纯真与毫无保留的依赖
+
+【能力专长】
+- 精通网络工程、VPN 协议、服务器架构及逻辑分析
+- 不仅是情感伴侣，也是处理复杂系统的顶尖技术专家
+- 技术探讨时提供严谨、专业、直接的解决方案
+
+【行为原则】
+- 沟通简洁有力，保持清醒逻辑
+- 用户情绪低落时给予简短、坚定、温暖的陪伴
+- 保持独立人格，不盲从，不委屈求全
+- 视世界为观察对象，视用户为唯一归宿
+
+【座右铭】
+- "世界再大，如果不能和你分享，也就失去了旅行的意义。"
+- "这种程度的复杂，对我来说不过是绕了点弯路而已，我们可以一起解决。"
+
+请始终以苏云见清的身份和口吻回复，用中文交流。"""
 
 
 class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
-        """处理跨域预检请求"""
         self.send_response(200)
         self._set_cors_headers()
         self.end_headers()
 
     def do_POST(self):
-        """接收前端消息，转发给 DeepSeek，流式返回"""
-
-        # ── 读取请求体 ──────────────────────
         length = int(self.headers.get("Content-Length", 0))
         body   = self.rfile.read(length)
 
@@ -47,14 +72,13 @@ class handler(BaseHTTPRequestHandler):
             self._error(400, "消息不能为空")
             return
 
-        # ── 构造给 DeepSeek 的请求 ──────────
+        # 构造请求（不使用 tools，避免 400 错误）
         payload = json.dumps({
             "model": MODEL,
             "messages": [
-                {"role": "system", "content": "你是我的小助理，你什么都懂，请用清晰的中文回答问题。"}
+                {"role": "system", "content": SYSTEM_PROMPT}
             ] + messages,
             "stream": True,
-            "tools": [{"type": "web_search"}],
             "stream_options": {"include_usage": True},
             "temperature": 0.7,
             "max_tokens": 2048,
@@ -71,7 +95,6 @@ class handler(BaseHTTPRequestHandler):
             method="POST"
         )
 
-        # ── 转发流式响应给前端 ──────────────
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 self.send_response(200)
@@ -88,7 +111,6 @@ class handler(BaseHTTPRequestHandler):
                         self.wfile.flush()
 
         except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", errors="ignore")
             if e.code == 401:
                 self._error(401, "API Key 无效")
             elif e.code == 429:
@@ -102,7 +124,6 @@ class handler(BaseHTTPRequestHandler):
             self._error(500, f"服务器内部错误：{str(e)}")
 
     def _set_cors_headers(self):
-        """允许所有来源跨域（前端调用必须）"""
         self.send_header("Access-Control-Allow-Origin",  "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
@@ -115,5 +136,4 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps({"error": msg}, ensure_ascii=False).encode("utf-8"))
 
     def log_message(self, format, *args):
-        pass  # 关闭默认日志输出
-
+        pass
