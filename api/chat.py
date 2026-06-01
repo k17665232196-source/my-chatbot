@@ -51,9 +51,10 @@ class handler(BaseHTTPRequestHandler):
         payload = json.dumps({
             "model": MODEL,
             "messages": [
-                {"role": "system", "content": "你是一个智能助手，请用简洁清晰的中文回答问题。"}
+                {"role": "system", "content": "你是我的小助理，你什么都懂，请用清晰的中文回答问题。"}
             ] + messages,
             "stream": True,
+            "tools": [{"type": "web_search"}],
             "stream_options": {"include_usage": True},
             "temperature": 0.7,
             "max_tokens": 2048,
